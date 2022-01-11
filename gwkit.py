@@ -6,17 +6,22 @@ import json
 import logging
 import os
 import re
-
+import requests
 import sys
+import getpass
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
 logger.setLevel(logging.INFO)
 
+# sso auth
+login_url = 'https://sso.nhnent.com/siteminderagent/forms/login.fcc'
+whatsup_url = 'whatsup.nhnent.com'
+
+# gwkit path file
 script_path = os.path.dirname(os.path.realpath(__file__))
 kinit_password = '{0}/.kinit_passwd'.format(script_path)
 server_list_json_file = '{0}/server_list.json'.format(script_path)
-
 
 class Context:
     def __init__(self, stdscr):
@@ -324,6 +329,62 @@ class InputLabel:
     def print_label(self, y, x):
         self.window.addstr(y, x, self.prefix + " " + self.value)
 
+class LoadTipsServerList:
+    def __init__(self, context, sso_id=None, sso_pw=None):
+        half_cols = int(context.cols / 2) - 50
+        self.context = context
+        self.window = curses.newwin(12, 100, self.context.top_help_rows + self.context.top_win_rows + 4, half_cols)
+        self.window.border(0)
+        self.window.scrollok(True)
+        self.window.keypad(True)
+        self.window.addstr(0, 5, 'Input Your SSO INFO')
+        self.window.bkgd(' ', curses.color_pair(5))
+
+        self.padding_top = 2
+        self.padding_left = 2
+
+        self.input_label_idx = 0
+
+        self.id_input_label = InputLabel(self.window, self.padding_left, 'Your NHN SSO ID: ', sso_id)
+        self.pw_input_label = InputLabel(self.window, self.padding_left, 'Your NHN SSO PW: ', sso_pw)
+
+	self.input_labels = [self.id_input_label, self.pw_input_label]
+
+	self.id_input_label.print_label(self.padding_top, self.padding_left)
+        self.pw_input_label.print_label(self.padding_top + 2, self.padding_left)
+
+        self._move_cursor(0)
+
+    def _move_cursor(self, delta):
+        self.input_label_idx = (self.input_label_idx + delta) % len(self.input_labels)
+        input_label = self.input_labels[self.input_label_idx]
+        self.window.move(self.padding_top + self.input_label_idx * 2, input_label.x)
+
+    def _process_key(self, key):
+        self.input_labels[self.input_label_idx].process_key(key)
+
+    def process(self):
+        while (True):
+            try:
+                c = self.window.getch()
+                if c == curses.KEY_UP:
+                    self._move_cursor(-1)
+                elif c == curses.KEY_DOWN:
+                    self._move_cursor(+1)
+                elif c == ord('\n'):
+                    if not self.id_input_label.value :
+			logger.info('no value')
+		    elif not self.pw_input_label.value:
+			logger.info('no value')
+                    else:
+	                return {
+                            'sso_id': self.id_input_label.value,
+                            'sso_pw': self.pw_input_label.value
+			}
+                else:
+                    self._process_key(c)
+            except KeyboardInterrupt:
+                return None
 
 class LoadOldGwFilePopupWindow:
     def __init__(self, context):
@@ -346,7 +407,6 @@ class LoadOldGwFilePopupWindow:
                     self.path_input_label.process_key(c)
             except KeyboardInterrupt:
                 return None
-
 
 class ServerPopupWindow:
     def __init__(self, context, servers, host=None, description=None, tags=None):
@@ -422,6 +482,103 @@ class ServerPopupWindow:
             except KeyboardInterrupt:
                 return None
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    YELLOW = '\033[93m'
+    BALCK = '\033[30m'
+
+def print_progress (iteration, total, prefix = '', suffix = '', decimals = 1, barLength = 100):
+    formatStr = "{0:." + str(decimals) + "f}"
+    percent = formatStr.format(100 * (iteration / float(total)))
+    filledLength = int(round(barLength * iteration / float(total)))
+    bar = (bcolors.OKBLUE + '▇' + bcolors.ENDC)  * filledLength + '-' * (barLength - filledLength)
+    sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percent, '%', suffix)),
+    if iteration == total:
+        sys.stdout.write('\n')
+    sys.stdout.flush()
+
+def init_server_list():
+	print bcolors.OKBLUE + """
+ __    __  __    __  __    __         ______    ______    ______
+|  \  |  \|  \  |  \|  \  |  \       /      \  /      \  /      \\
+| $$\ | $$| $$  | $$| $$\ | $$      |  $$$$$$\|  $$$$$$\|  $$$$$$\\
+| $$$\| $$| $$__| $$| $$$\| $$      | $$___\$$| $$___\$$| $$  | $$
+| $$$$\ $$| $$    $$| $$$$\ $$       \$$    \  \$$    \ | $$  | $$
+| $$\$$ $$| $$$$$$$$| $$\$$ $$       _\$$$$$$\ _\$$$$$$\| $$  | $$
+| $$ \$$$$| $$  | $$| $$ \$$$$      |  \__| $$|  \__| $$| $$__/ $$
+| $$  \$$$| $$  | $$| $$  \$$$       \$$    $$ \$$    $$ \$$    $$
+ \$$   \$$ \$$   \$$ \$$   \$$        \$$$$$$   \$$$$$$   \$$$$$$
+""" + bcolors.ENDC
+	# sso auth
+	sso_id = raw_input('SSO ID : ')
+	sso_pw = getpass.getpass('SSO PW : ')
+	data_payload = {
+	        'target': '-SM-http%3A%2F%2Fwhatsup.nhnent.com%2F%3Fbcr%3DLOGIN%26smEditLang%3Dko_KR',
+	        'smauthreason': '0',
+	        'smagentname' : whatsup_url,
+	        'USER': sso_id,
+	        'PASSWORD': sso_pw}
+
+	get_session_cookies = requests.post(login_url, data=data_payload)
+	cookie_result = get_session_cookies.headers.get('set-cookie')
+	if 'SMSESSION' not in cookie_result:
+	        print 'Your sso could not be authentication.'
+	        quit()
+
+	print 'Fetching your server list....'
+
+	post_url = 'http://tips.nhnent.com/config/serverGroups/my/retrieve'
+	post_params = {'searchCategory':'serviceOrPlatform', 'searchText':'', 'orderType':1, 'orderFieldName':'service_name','all': 'true' }
+
+	get_url = 'http://tips.nhnent.com/config/serverGroups/management/'
+	get_params =  {'formMode': '1', 'pageNum': '1', 'orderFieldName': 'host_name', 'orderType': '1'}
+
+	cookies = {'Cookie': cookie_result}
+
+	post_response = requests.post(post_url, json=post_params, headers=cookies)
+	post_data_list = post_response.json().get("serverGroupForManagementData").get("data")
+	result = list()
+
+	i = 1
+	for li in post_data_list :
+	        server_group_code = li.get('serverGroupCode')
+	        service_name = li.get('serviceName')
+
+	        url = get_url + str(server_group_code)
+	        get_response = requests.get(url, params=get_params, headers=cookies)
+
+	        contents = get_response.content
+	        dict_contents = json.loads(contents)
+
+	        server_list = dict_contents.get('serverGroupForManagement').get('data').get('serverList')
+	        for server in server_list:
+	        	file_data = dict()
+	                file_data["host"] = server.get('hostName').encode("utf-8")
+	                file_data["description"] = service_name.encode("utf-8")
+
+	                if server.get('tags') is None :
+	                        file_data["tags"] = []
+	                else :
+	                        tags = server.get('tags').encode("utf-8")
+	                        file_data["tags"] = tags.split()
+
+	                result.append(file_data)
+		print_progress(i, len(post_data_list) , 'Fetch Progress:', 'Complete', 1, 50)
+        	i += 1
+	print ""
+
+	final_result = str(result).replace("\'", "\"")
+	f = open(server_list_json_file, 'w')
+	f.write(final_result)
+	f.close()
 
 def main(stdscr):
     curses.noecho()
@@ -495,7 +652,7 @@ def main(stdscr):
                     server_list_win.load_old_gw_file(known_host_path)
 
                 server_list_win.refresh()
-            elif c == curses.KEY_RESIZE:
+	    elif c == curses.KEY_RESIZE:
                 context.calc_rows_and_cols()
                 user_win = UserWindow(context)
                 server_list_win = ServerListWindow(context)
@@ -516,6 +673,12 @@ def main(stdscr):
 
 
 if __name__ == '__main__':
+    is_init = sys.argv
+    if len(is_init) == 1:
+	pass
+    elif is_init[1] == "init":
+        init_server_list()
+
     if os.path.exists(kinit_password):
         os.system('cat {0} | kinit'.format(kinit_password))
     else:
