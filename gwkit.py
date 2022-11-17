@@ -9,13 +9,14 @@ import re
 import requests
 import sys
 import getpass
+import httplib
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
+# httplib.HTTPConnection.debuglevel = 1
 
 # sso auth
-login_url = 'https://sso.nhnent.com/siteminderagent/forms/login.fcc'
 whatsup_url = 'whatsup.nhnent.com'
 
 # gwkit path file
@@ -520,18 +521,35 @@ def init_server_list():
 	# sso auth
 	sso_id = raw_input('SSO ID : ')
 	sso_pw = getpass.getpass('SSO PW : ')
-	data_payload = {
-	        'target': '-SM-http%3A%2F%2Fwhatsup.nhnent.com%2F%3Fbcr%3DLOGIN%26smEditLang%3Dko_KR',
-	        'smauthreason': '0',
-	        'smagentname' : whatsup_url,
-	        'USER': sso_id,
-	        'PASSWORD': sso_pw}
 
-	get_session_cookies = requests.post(login_url, data=data_payload)
+	session = requests.Session()
+	print 'first page in tips.nhnent.com '
+	get_session_cookies = session.get('https://tips.nhnent.com')
 	cookie_result = get_session_cookies.headers.get('set-cookie')
-	if 'SMSESSION' not in cookie_result:
+	cookies = get_session_cookies.cookies
+
+	html = get_session_cookies.text
+	actionStartIndex = html.find('action=') + 8
+	print actionStartIndex
+	actionEndIndex = html.find('" method', actionStartIndex) 
+
+	loginUrl = html[actionStartIndex:actionEndIndex].replace('&amp;', '&')
+
+	data_payload = {
+	        'x': 53,
+	        'y' : 48,
+	        'language' : 'ko_KR',
+	        'times' : 'Asia/Seoul:+9',
+	        'username': sso_id,
+	        'password': sso_pw}
+
+	print('login... ' + loginUrl)
+	get_session_cookies = session.post(loginUrl, data=data_payload)
+	if get_session_cookies.status_code != 200:
 	        print 'Your sso could not be authentication.'
 	        quit()
+
+	cookies = get_session_cookies.cookies
 
 	print 'Fetching your server list....'
 
@@ -541,9 +559,7 @@ def init_server_list():
 	get_url = 'http://tips.nhnent.com/config/serverGroups/management/'
 	get_params =  {'formMode': '1', 'pageNum': '1', 'orderFieldName': 'host_name', 'orderType': '1'}
 
-	cookies = {'Cookie': cookie_result}
-
-	post_response = requests.post(post_url, json=post_params, headers=cookies)
+	post_response = session.post(post_url, json=post_params)
 	post_data_list = post_response.json().get("serverGroupForManagementData").get("data")
 	result = list()
 
@@ -553,7 +569,7 @@ def init_server_list():
 	        service_name = li.get('serviceName')
 
 	        url = get_url + str(server_group_code)
-	        get_response = requests.get(url, params=get_params, headers=cookies)
+	        get_response = session.get(url, params=get_params)
 
 	        contents = get_response.content
 	        dict_contents = json.loads(contents)
