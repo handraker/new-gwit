@@ -10,7 +10,6 @@ import requests
 import sys
 import getpass
 import httplib
-import io
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
@@ -35,6 +34,7 @@ class Context:
         self.half_cols = 0
         self.top_help_rows = 0
         self.top_win_rows = 0
+        self.login_method_idx = 0
         self.calc_rows_and_cols()
 
     def calc_rows_and_cols(self):
@@ -50,7 +50,7 @@ class HelpWindow:
         self.window.border(0)
         self.window.scrollok(True)
         self.window.addstr(0, 5, 'Help')
-        self.window.addstr(1, 2, '[/]: change user to rlogin')
+        self.window.addstr(1, 2, '[/]: change user to rlogin, [,]: change rlogin/ssh')
         self.window.addstr(2, 2, '[ctrl-n]: register new server     [ctrl-d]: delete server')
         self.window.addstr(3, 2, '[ctrl-e]: modify server           [ctrl-c]: quit or close popup window')
         self.window.addstr(4, 2, '[ctrl-l]: load old gw file        [ctrl-r]: reset popup input')
@@ -65,22 +65,32 @@ class UserWindow:
     def __init__(self, context):
         self.context = context
         self.users = ['irteam', 'irteamsu']
+        self.login_methods = ['rlogin', 'ssh']
         self.window = curses.newwin(self.context.top_win_rows, self.context.half_cols, self.context.top_help_rows, 0)
         self.window.scrollok(True)
-        self.window.border(0)
-        self.window.addstr(1, 2, "user : " + self.get_user())
-        self.window.refresh()
+        self.refresh_user_border()
+        
 
     def change_user(self):
         self.context.user_idx = (self.context.user_idx + 1) % 2
         self.window.clear()
+        self.refresh_user_border()
+
+    def change_login_method(self):
+        self.context.login_method_idx = (self.context.login_method_idx + 1) % 2
+        self.window.clear()
+        self.refresh_user_border()
+
+    def refresh_user_border(self):
         self.window.border(0)
-        self.window.addstr(1, 2, "user : " + self.get_user())
+        self.window.addstr(1, 2, "user : " + self.get_user() + ", [ " + self.get_login_method() + " ]")
         self.window.refresh()
 
     def get_user(self):
         return self.users[self.context.user_idx]
 
+    def get_login_method(self):
+        return self.login_methods[self.context.login_method_idx]
 
 class KeywordWindow:
     def __init__(self, context):
@@ -167,7 +177,6 @@ class ServerListWindow:
         text_length = 0
         words = text.split(' ')
         for word in words:
-            word = word.encode('utf-8')
             color_index = 0
             if index == self.selected_server_idx:
                 color_index += 1
@@ -274,7 +283,11 @@ class ServerListWindow:
             return
 
         curses.endwin()
-        os.system('rlogin -l {0} {1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
+
+        if self.context.login_method_idx == 0:
+            os.system('rlogin -l {0} {1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
+        else:
+            os.system('ssh {0}@{1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
 
     def save_to_json(self):
         with open(server_list_json_file, 'w') as f:
@@ -533,7 +546,7 @@ def init_server_list():
 	html = get_session_cookies.text
 	actionStartIndex = html.find('action=') + 8
 	print actionStartIndex
-	actionEndIndex = html.find('" method', actionStartIndex)
+	actionEndIndex = html.find('" method', actionStartIndex) 
 
 	loginUrl = html[actionStartIndex:actionEndIndex].replace('&amp;', '&')
 
@@ -593,8 +606,8 @@ def init_server_list():
         	i += 1
 	print ""
 
-	final_result = str(result).decode('string-escape').decode("utf-8").replace("\'", "\"")
-	f = io.open(server_list_json_file, 'w', encoding='utf-8')
+	final_result = str(result).replace("\'", "\"")
+	f = open(server_list_json_file, 'w')
 	f.write(final_result)
 	f.close()
 
@@ -621,6 +634,8 @@ def main(stdscr):
             c = keyword_win.getch()
             if c == ord('/'):
                 user_win.change_user()
+            elif c == ord(','):
+                user_win.change_login_method()
             elif c == curses.KEY_UP:
                 server_list_win.select_up(1)
                 server_list_win.refresh()
