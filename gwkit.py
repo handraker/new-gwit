@@ -606,8 +606,8 @@ def init_server_list():
         	i += 1
 	print ""
 
-	final_result = str(result).replace("\'", "\"")
-	f = open(server_list_json_file, 'w')
+	final_result = str(result).decode('string-escape').decode("utf-8").replace("\'", "\"")
+	f = io.open(server_list_json_file, 'w', encoding='utf-8')
 	f.write(final_result)
 	f.close()
 
