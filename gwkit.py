@@ -10,6 +10,7 @@ import requests
 import sys
 import getpass
 import httplib
+import io
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
