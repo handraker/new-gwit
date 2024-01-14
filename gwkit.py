@@ -10,7 +10,6 @@ import requests
 import sys
 import getpass
 import httplib
-import io
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
@@ -609,8 +608,8 @@ def init_server_list():
         	i += 1
 	print ""
 
-	final_result = str(result).decode('string-escape').decode("utf-8").replace("\'", "\"")
-	f = io.open(server_list_json_file, 'w', encoding='utf-8')
+	final_result = str(result).replace("\'", "\"")
+	f = open(server_list_json_file, 'w')
 	f.write(final_result)
 	f.close()
 
