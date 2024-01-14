@@ -286,7 +286,9 @@ class ServerListWindow:
         curses.endwin()
 
         if self.context.login_method_idx == 0:
-            os.system('rlogin -l {0} {1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
+            ret = os.system('rlogin -l {0} {1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
+            if ret != 0:
+                os.system('ssh {0}@{1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
         else:
             os.system('ssh {0}@{1}'.format(user, self.filtered_servers[self.selected_server_idx]['host']))
 
