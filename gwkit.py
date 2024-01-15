@@ -2,14 +2,14 @@
 # -*- coding: utf-8 -*-
 
 import curses
+import getpass
 import json
 import logging
 import os
 import re
-import requests
 import sys
-import getpass
-import httplib
+
+import requests
 
 logger = logging.getLogger('gwkit')
 logger.addHandler(logging.FileHandler('gwkit.log'))
@@ -23,6 +23,7 @@ whatsup_url = 'whatsup.nhnent.com'
 script_path = os.path.dirname(os.path.realpath(__file__))
 kinit_password = '{0}/.kinit_passwd'.format(script_path)
 server_list_json_file = '{0}/server_list.json'.format(script_path)
+
 
 class Context:
     def __init__(self, stdscr):
@@ -69,7 +70,6 @@ class UserWindow:
         self.window = curses.newwin(self.context.top_win_rows, self.context.half_cols, self.context.top_help_rows, 0)
         self.window.scrollok(True)
         self.refresh_user_border()
-        
 
     def change_user(self):
         self.context.user_idx = (self.context.user_idx + 1) % 2
@@ -91,6 +91,7 @@ class UserWindow:
 
     def get_login_method(self):
         return self.login_methods[self.context.login_method_idx]
+
 
 class KeywordWindow:
     def __init__(self, context):
@@ -347,6 +348,7 @@ class InputLabel:
     def print_label(self, y, x):
         self.window.addstr(y, x, self.prefix + " " + self.value)
 
+
 class LoadTipsServerList:
     def __init__(self, context, sso_id=None, sso_pw=None):
         half_cols = int(context.cols / 2) - 50
@@ -366,9 +368,9 @@ class LoadTipsServerList:
         self.id_input_label = InputLabel(self.window, self.padding_left, 'Your NHN SSO ID: ', sso_id)
         self.pw_input_label = InputLabel(self.window, self.padding_left, 'Your NHN SSO PW: ', sso_pw)
 
-	self.input_labels = [self.id_input_label, self.pw_input_label]
+        self.input_labels = [self.id_input_label, self.pw_input_label]
 
-	self.id_input_label.print_label(self.padding_top, self.padding_left)
+        self.id_input_label.print_label(self.padding_top, self.padding_left)
         self.pw_input_label.print_label(self.padding_top + 2, self.padding_left)
 
         self._move_cursor(0)
@@ -390,19 +392,20 @@ class LoadTipsServerList:
                 elif c == curses.KEY_DOWN:
                     self._move_cursor(+1)
                 elif c == ord('\n'):
-                    if not self.id_input_label.value :
-			logger.info('no value')
-		    elif not self.pw_input_label.value:
-			logger.info('no value')
+                    if not self.id_input_label.value:
+                        logger.info('no value')
+                    elif not self.pw_input_label.value:
+                        logger.info('no value')
                     else:
-	                return {
+                        return {
                             'sso_id': self.id_input_label.value,
                             'sso_pw': self.pw_input_label.value
-			}
+                        }
                 else:
                     self._process_key(c)
             except KeyboardInterrupt:
                 return None
+
 
 class LoadOldGwFilePopupWindow:
     def __init__(self, context):
@@ -425,6 +428,7 @@ class LoadOldGwFilePopupWindow:
                     self.path_input_label.process_key(c)
             except KeyboardInterrupt:
                 return None
+
 
 class ServerPopupWindow:
     def __init__(self, context, servers, host=None, description=None, tags=None):
@@ -500,6 +504,7 @@ class ServerPopupWindow:
             except KeyboardInterrupt:
                 return None
 
+
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -513,18 +518,21 @@ class bcolors:
     YELLOW = '\033[93m'
     BALCK = '\033[30m'
 
-def print_progress (iteration, total, prefix = '', suffix = '', decimals = 1, barLength = 100):
+
+def print_progress(iteration, total, prefix='', suffix='', decimals=1, barLength=100):
     formatStr = "{0:." + str(decimals) + "f}"
     percent = formatStr.format(100 * (iteration / float(total)))
     filledLength = int(round(barLength * iteration / float(total)))
-    bar = (bcolors.OKBLUE + '▇' + bcolors.ENDC)  * filledLength + '-' * (barLength - filledLength)
+    bar = (bcolors.OKBLUE + '▇' + bcolors.ENDC) * filledLength + '-' * (barLength - filledLength)
     sys.stdout.write('\r%s |%s| %s%s %s' % (prefix, bar, percent, '%', suffix)),
     if iteration == total:
         sys.stdout.write('\n')
     sys.stdout.flush()
 
+
 def init_server_list():
-	print bcolors.OKBLUE + """
+    print
+    bcolors.OKBLUE + """
  __    __  __    __  __    __         ______    ______    ______
 |  \  |  \|  \  |  \|  \  |  \       /      \  /      \  /      \\
 | $$\ | $$| $$  | $$| $$\ | $$      |  $$$$$$\|  $$$$$$\|  $$$$$$\\
@@ -535,83 +543,89 @@ def init_server_list():
 | $$  \$$$| $$  | $$| $$  \$$$       \$$    $$ \$$    $$ \$$    $$
  \$$   \$$ \$$   \$$ \$$   \$$        \$$$$$$   \$$$$$$   \$$$$$$
 """ + bcolors.ENDC
-	# sso auth
-	sso_id = raw_input('SSO ID : ')
-	sso_pw = getpass.getpass('SSO PW : ')
+    # sso auth
+    sso_id = raw_input('SSO ID : ')
+    sso_pw = getpass.getpass('SSO PW : ')
 
-	session = requests.Session()
-	print 'first page in tips.nhnent.com '
-	get_session_cookies = session.get('https://tips.nhnent.com')
-	cookie_result = get_session_cookies.headers.get('set-cookie')
-	cookies = get_session_cookies.cookies
+    session = requests.Session()
+    print
+    'first page in tips.nhnent.com '
+    get_session_cookies = session.get('https://tips.nhnent.com')
+    cookie_result = get_session_cookies.headers.get('set-cookie')
+    cookies = get_session_cookies.cookies
 
-	html = get_session_cookies.text
-	actionStartIndex = html.find('action=') + 8
-	print actionStartIndex
-	actionEndIndex = html.find('" method', actionStartIndex) 
+    html = get_session_cookies.text
+    actionStartIndex = html.find('action=') + 8
+    print
+    actionStartIndex
+    actionEndIndex = html.find('" method', actionStartIndex)
 
-	loginUrl = html[actionStartIndex:actionEndIndex].replace('&amp;', '&')
+    loginUrl = html[actionStartIndex:actionEndIndex].replace('&amp;', '&')
 
-	data_payload = {
-	        'x': 53,
-	        'y' : 48,
-	        'language' : 'ko_KR',
-	        'times' : 'Asia/Seoul:+9',
-	        'username': sso_id,
-	        'password': sso_pw}
+    data_payload = {
+        'x': 53,
+        'y': 48,
+        'language': 'ko_KR',
+        'times': 'Asia/Seoul:+9',
+        'username': sso_id,
+        'password': sso_pw}
 
-	print('login... ' + loginUrl)
-	get_session_cookies = session.post(loginUrl, data=data_payload)
-	if get_session_cookies.status_code != 200:
-	        print 'Your sso could not be authentication.'
-	        quit()
+    print('login... ' + loginUrl)
+    get_session_cookies = session.post(loginUrl, data=data_payload)
+    if get_session_cookies.status_code != 200:
+        print
+        'Your sso could not be authentication.'
+        quit()
 
-	cookies = get_session_cookies.cookies
+    cookies = get_session_cookies.cookies
 
-	print 'Fetching your server list....'
+    print
+    'Fetching your server list....'
 
-	post_url = 'http://tips.nhnent.com/config/serverGroups/my/retrieve'
-	post_params = {'searchCategory':'serviceOrPlatform', 'searchText':'', 'orderType':1, 'orderFieldName':'service_name','all': 'true' }
+    post_url = 'http://tips.nhnent.com/config/serverGroups/my/retrieve'
+    post_params = {'searchCategory': 'serviceOrPlatform', 'searchText': '', 'orderType': 1, 'orderFieldName': 'service_name', 'all': 'true'}
 
-	get_url = 'http://tips.nhnent.com/config/serverGroups/management/'
-	get_params =  {'formMode': '1', 'pageNum': '1', 'orderFieldName': 'host_name', 'orderType': '1'}
+    get_url = 'http://tips.nhnent.com/config/serverGroups/management/'
+    get_params = {'formMode': '1', 'pageNum': '1', 'orderFieldName': 'host_name', 'orderType': '1'}
 
-	post_response = session.post(post_url, json=post_params)
-	post_data_list = post_response.json().get("serverGroupForManagementData").get("data")
-	result = list()
+    post_response = session.post(post_url, json=post_params)
+    post_data_list = post_response.json().get("serverGroupForManagementData").get("data")
+    result = list()
 
-	i = 1
-	for li in post_data_list :
-	        server_group_code = li.get('serverGroupCode')
-	        service_name = li.get('serviceName')
+    i = 1
+    for li in post_data_list:
+        server_group_code = li.get('serverGroupCode')
+        service_name = li.get('serviceName')
 
-	        url = get_url + str(server_group_code)
-	        get_response = session.get(url, params=get_params)
+        url = get_url + str(server_group_code)
+        get_response = session.get(url, params=get_params)
 
-	        contents = get_response.content
-	        dict_contents = json.loads(contents)
+        contents = get_response.content
+        dict_contents = json.loads(contents)
 
-	        server_list = dict_contents.get('serverGroupForManagement').get('data').get('serverList')
-	        for server in server_list:
-	        	file_data = dict()
-	                file_data["host"] = server.get('hostName').encode("utf-8")
-	                file_data["description"] = service_name.encode("utf-8")
+        server_list = dict_contents.get('serverGroupForManagement').get('data').get('serverList')
+        for server in server_list:
+            file_data = dict()
+            file_data["host"] = server.get('hostName').encode("utf-8")
+            file_data["description"] = service_name.encode("utf-8")
 
-	                if server.get('tags') is None :
-	                        file_data["tags"] = []
-	                else :
-	                        tags = server.get('tags').encode("utf-8")
-	                        file_data["tags"] = tags.split()
+            if server.get('tags') is None:
+                file_data["tags"] = []
+            else:
+                tags = server.get('tags').encode("utf-8")
+                file_data["tags"] = tags.split()
 
-	                result.append(file_data)
-		print_progress(i, len(post_data_list) , 'Fetch Progress:', 'Complete', 1, 50)
-        	i += 1
-	print ""
+            result.append(file_data)
+        print_progress(i, len(post_data_list), 'Fetch Progress:', 'Complete', 1, 50)
+        i += 1
+    print
+    ""
 
-	final_result = str(result).replace("\'", "\"")
-	f = open(server_list_json_file, 'w')
-	f.write(final_result)
-	f.close()
+    final_result = str(result).replace("\'", "\"")
+    f = open(server_list_json_file, 'w')
+    f.write(final_result)
+    f.close()
+
 
 def main(stdscr):
     curses.noecho()
@@ -687,7 +701,7 @@ def main(stdscr):
                     server_list_win.load_old_gw_file(known_host_path)
 
                 server_list_win.refresh()
-	    elif c == curses.KEY_RESIZE:
+            elif c == curses.KEY_RESIZE:
                 context.calc_rows_and_cols()
                 user_win = UserWindow(context)
                 server_list_win = ServerListWindow(context)
@@ -710,7 +724,7 @@ def main(stdscr):
 if __name__ == '__main__':
     is_init = sys.argv
     if len(is_init) == 1:
-	pass
+        pass
     elif is_init[1] == "init":
         init_server_list()
 
