@@ -582,10 +582,10 @@ def init_server_list():
     print
     'Fetching your server list....'
 
-    post_url = 'http://tips.nhnent.com/config/serverGroups/my/retrieve'
+    post_url = 'https://tips.nhnent.com/config/serverGroups/my/retrieve'
     post_params = {'searchCategory': 'serviceOrPlatform', 'searchText': '', 'orderType': 1, 'orderFieldName': 'service_name', 'all': 'true'}
 
-    get_url = 'http://tips.nhnent.com/config/serverGroups/management/'
+    get_url = 'https://tips.nhnent.com/config/serverGroups/management/'
     get_params = {'formMode': '1', 'pageNum': '1', 'orderFieldName': 'host_name', 'orderType': '1'}
 
     post_response = session.post(post_url, json=post_params)
