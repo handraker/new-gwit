@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
 import curses
@@ -35,7 +35,7 @@ class Context:
         self.half_cols = 0
         self.top_help_rows = 0
         self.top_win_rows = 0
-        self.login_method_idx = 0
+        self.login_method_idx = 1
         self.calc_rows_and_cols()
 
     def calc_rows_and_cols(self):
@@ -651,6 +651,8 @@ def main(stdscr):
             if c == ord('/'):
                 user_win.change_user()
             elif c == ord(','):
+                user_win.change_login_method()
+            elif c == ord('\\'):
                 user_win.change_login_method()
             elif c == curses.KEY_UP:
                 server_list_win.select_up(1)
