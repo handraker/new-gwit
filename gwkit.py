@@ -100,9 +100,8 @@ class KeywordWindow:
         self.window.scrollok(True)
         self.window.keypad(True)
         self.window.border(0)
-        self.window.addstr(1, 2, "keyword : " + self.context.keyword)
-        self.window.refresh()
-        self.cursur_x = 13 + len(self.context.keyword)
+        self.cursor_pos = len(self.context.keyword)  # 커서 위치 (값 내에서의 인덱스)
+        self.refresh_display()
 
     def getch(self):
         return self.window.getch()
@@ -110,16 +109,91 @@ class KeywordWindow:
     def refresh(self):
         self.window.refresh()
 
+    def refresh_display(self):
+        # 현재 라인 지우기
+        self.window.move(1, 2)
+        self.window.clrtoeol()
+        
+        # 라벨 부분
+        prefix = "keyword : "
+        self.window.addstr(1, 2, prefix, curses.color_pair(0))  # 기본 색상
+        
+        # 입력 영역 크기 계산 (사용 가능한 공간에 맞춤)
+        available_width = self.context.half_cols - 4 - len(prefix)  # 여백과 라벨 공간 제외
+        display_width = max(available_width, len(self.context.keyword) + 5)
+        
+        # 텍스트가 없는 경우 공백을 추가하여 커서 표시
+        if len(self.context.keyword) == 0:
+            display_text = " " * max(1, display_width)
+        else:
+            display_text = self.context.keyword + " " * (display_width - len(self.context.keyword))
+        
+        # 각 문자를 개별적으로 출력 (커서 위치 하이라이트)
+        start_x = 2 + len(prefix)
+        for i in range(min(display_width, available_width)):
+            if i < len(display_text):
+                char = display_text[i]
+            else:
+                char = " "
+            
+            # 커서 위치 강조 표시
+            if i == self.cursor_pos:
+                if char == " ":
+                    # 빈 공간에서는 언더스코어(_)로 커서 표시
+                    self.window.addstr(1, start_x + i, "_", curses.color_pair(2) | curses.A_BOLD)  # 빨간색, 굵게
+                else:
+                    # 문자가 있는 곳에서는 역상으로 표시
+                    self.window.addstr(1, start_x + i, char, curses.color_pair(1) | curses.A_BOLD)  # 검은 글자, 노란 배경, 굵게
+            else:
+                # 일반 텍스트
+                if i < len(self.context.keyword):
+                    self.window.addstr(1, start_x + i, char, curses.color_pair(0))  # 기본 색상
+                else:
+                    self.window.addstr(1, start_x + i, char, curses.color_pair(0))  # 빈 공간도 기본 색상
+        
+        # 화면 새로고침
+        self.window.refresh()
+
     def process(self, key):
-        if key == 8 or key == 127 or key == curses.KEY_BACKSPACE:
-            if self.cursur_x > 13:
-                self.window.addstr("\b \b")
-                self.context.keyword = self.context.keyword[:-1]
-                self.cursur_x -= 1
+        if key == curses.KEY_LEFT:
+            # 왼쪽 화살표
+            if self.cursor_pos > 0:
+                self.cursor_pos -= 1
+                self.refresh_display()
+        elif key == curses.KEY_RIGHT:
+            # 오른쪽 화살표
+            if self.cursor_pos < len(self.context.keyword):
+                self.cursor_pos += 1
+                self.refresh_display()
+        elif key == curses.KEY_HOME or key == 1:  # Ctrl-A
+            # 맨 앞으로
+            self.cursor_pos = 0
+            self.refresh_display()
+        elif key == curses.KEY_END or key == 5:  # Ctrl-E
+            # 맨 뒤로
+            self.cursor_pos = len(self.context.keyword)
+            self.refresh_display()
+        elif key == 8 or key == 127 or key == curses.KEY_BACKSPACE:
+            # 백스페이스
+            if self.cursor_pos > 0:
+                self.context.keyword = self.context.keyword[:self.cursor_pos-1] + self.context.keyword[self.cursor_pos:]
+                self.cursor_pos -= 1
+                self.refresh_display()
+        elif key == curses.KEY_DC:
+            # Delete 키
+            if self.cursor_pos < len(self.context.keyword):
+                self.context.keyword = self.context.keyword[:self.cursor_pos] + self.context.keyword[self.cursor_pos+1:]
+                self.refresh_display()
+        elif key == 18:  # Ctrl-R
+            # 전체 삭제
+            self.context.keyword = ''
+            self.cursor_pos = 0
+            self.refresh_display()
         elif key >= 32 and key <= 126:
-            self.window.addch(key)
-            self.context.keyword += chr(key)
-            self.cursur_x += 1
+            # 일반 문자 입력
+            self.context.keyword = self.context.keyword[:self.cursor_pos] + chr(key) + self.context.keyword[self.cursor_pos:]
+            self.cursor_pos += 1
+            self.refresh_display()
 
 
 class ServerListWindow:
