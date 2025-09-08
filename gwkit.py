@@ -328,25 +328,105 @@ class InputLabel:
             self.value = value
         self.min_x = padding_left + len(self.prefix) + 1
         self.x = self.min_x + len(self.value)
+        self.cursor_pos = len(self.value)  # 커서 위치 (값 내에서의 인덱스)
+        self.y = 0  # y 좌표 저장
+        self.label_x = 0  # 레이블 시작 x 좌표 저장
+        self.is_active = False  # 현재 활성화된 필드인지 여부
 
     def process_key(self, key):
-        if key == 8 or key == 127 or key == curses.KEY_BACKSPACE:
-            if self.x > self.min_x:
-                self.window.addstr("\b \b")
-                self.value = self.value[:-1]
-                self.x -= 1
-        elif key == 18:
-            for i in range(len(self.value)):
-                self.window.addstr("\b \b")
-                self.value = self.value[:-1]
-                self.x -= 1
+        if key == curses.KEY_LEFT:
+            # 왼쪽 화살표
+            if self.cursor_pos > 0:
+                self.cursor_pos -= 1
+                self.refresh_display()
+        elif key == curses.KEY_RIGHT:
+            # 오른쪽 화살표
+            if self.cursor_pos < len(self.value):
+                self.cursor_pos += 1
+                self.refresh_display()
+        elif key == curses.KEY_HOME or key == 1:  # Ctrl-A
+            # 맨 앞으로
+            self.cursor_pos = 0
+            self.refresh_display()
+        elif key == curses.KEY_END or key == 5:  # Ctrl-E
+            # 맨 뒤로
+            self.cursor_pos = len(self.value)
+            self.refresh_display()
+        elif key == 8 or key == 127 or key == curses.KEY_BACKSPACE:
+            # 백스페이스
+            if self.cursor_pos > 0:
+                self.value = self.value[:self.cursor_pos-1] + self.value[self.cursor_pos:]
+                self.cursor_pos -= 1
+                self.refresh_display()
+        elif key == curses.KEY_DC:
+            # Delete 키
+            if self.cursor_pos < len(self.value):
+                self.value = self.value[:self.cursor_pos] + self.value[self.cursor_pos+1:]
+                self.refresh_display()
+        elif key == 18:  # Ctrl-R
+            # 전체 삭제
+            self.value = ''
+            self.cursor_pos = 0
+            self.refresh_display()
         elif key >= 32 and key <= 126:
-            self.window.addch(key)
-            self.value += chr(key)
-            self.x += 1
+            # 일반 문자 입력
+            self.value = self.value[:self.cursor_pos] + chr(key) + self.value[self.cursor_pos:]
+            self.cursor_pos += 1
+            self.refresh_display()
+
+    def set_active(self, active):
+        """필드의 활성 상태를 설정"""
+        self.is_active = active
+        self.refresh_display()
+
+    def refresh_display(self):
+        # 현재 라인 지우기
+        self.window.move(self.y, self.label_x)
+        self.window.clrtoeol()
+        
+        # 라벨 부분 (흰 배경)
+        self.window.addstr(self.y, self.label_x, self.prefix + " ", curses.color_pair(5))
+        
+        # 입력 영역 크기 계산 (최소 20칸)
+        display_width = max(20, len(self.value) + 5)
+        display_text = self.value + " " * (display_width - len(self.value))
+        
+        # 각 문자를 개별적으로 출력
+        for i in range(display_width):
+            if i < len(display_text):
+                char = display_text[i]
+            else:
+                char = " "
+            
+            # 활성화된 필드에서만 커서 위치 하이라이트
+            if self.is_active and i == self.cursor_pos:
+                self.window.addstr(self.y, self.min_x + i, char, curses.color_pair(6))
+            else:
+                self.window.addstr(self.y, self.min_x + i, char, curses.color_pair(7))
 
     def print_label(self, y, x):
-        self.window.addstr(y, x, self.prefix + " " + self.value)
+        self.y = y
+        self.label_x = x
+        
+        # 라벨 부분 (흰 배경)
+        self.window.addstr(y, x, self.prefix + " ", curses.color_pair(5))
+        
+        # 입력 영역 크기 계산 (최소 20칸)
+        display_width = max(20, len(self.value) + 5)
+        display_text = self.value + " " * (display_width - len(self.value))
+        
+        # 각 문자를 개별적으로 출력
+        for i in range(display_width):
+            if i < len(display_text):
+                char = display_text[i]
+            else:
+                char = " "
+            
+            # 활성화된 필드에서만 커서 위치 하이라이트
+            if self.is_active and i == self.cursor_pos:
+                self.window.addstr(y, self.min_x + i, char, curses.color_pair(6))
+            else:
+                self.window.addstr(y, self.min_x + i, char, curses.color_pair(7))
 
 
 class LoadTipsServerList:
@@ -413,9 +493,13 @@ class LoadOldGwFilePopupWindow:
         self.window = curses.newwin(3, 100, context.top_help_rows + context.top_win_rows + 4, half_cols)
         self.window.border(0)
         self.window.scrollok(True)
+        # 커서를 숨김 (우리가 직접 커서를 표시)
+        curses.curs_set(0)
+        
         self.window.addstr(0, 5, 'Load old gateway .known_hosts (.known_host can be omitted)')
         self.window.bkgd(' ', curses.color_pair(5))
         self.path_input_label = InputLabel(self.window, 2, 'Path :', os.path.expanduser('~'))
+        self.path_input_label.set_active(True)  # 활성화
         self.path_input_label.print_label(1, 2)
 
     def process(self):
@@ -440,6 +524,9 @@ class ServerPopupWindow:
         self.window.border(0)
         self.window.scrollok(True)
         self.window.keypad(True)
+        # 커서를 숨김 (우리가 직접 커서를 표시)
+        curses.curs_set(0)
+        
         if self.original_host is None:
             self.window.addstr(0, 5, 'Register')
         else:
@@ -459,12 +546,23 @@ class ServerPopupWindow:
         self.description_input_label.print_label(self.padding_top + 2, self.padding_left)
         self.tags_input_label.print_label(self.padding_top + 4, self.padding_left)
 
+        # 첫 번째 필드를 활성화
+        self.input_labels[self.input_label_idx].set_active(True)
         self._move_cursor(0)
 
     def _move_cursor(self, delta):
+        # 이전 필드를 비활성화
+        self.input_labels[self.input_label_idx].set_active(False)
+        
+        # 새로운 필드로 이동
         self.input_label_idx = (self.input_label_idx + delta) % len(self.input_labels)
+        
+        # 새 필드를 활성화
+        self.input_labels[self.input_label_idx].set_active(True)
+        
         input_label = self.input_labels[self.input_label_idx]
-        self.window.move(self.padding_top + self.input_label_idx * 2, input_label.x)
+        # 커서를 해당 입력 필드의 현재 커서 위치로 이동
+        self.window.move(self.padding_top + self.input_label_idx * 2, input_label.min_x + input_label.cursor_pos)
 
     def _process_key(self, key):
         self.input_labels[self.input_label_idx].process_key(key)
@@ -638,6 +736,8 @@ def main(stdscr):
     curses.init_pair(3, curses.COLOR_RED, curses.COLOR_YELLOW)
     curses.init_pair(4, curses.COLOR_RED, -1)
     curses.init_pair(5, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(6, curses.COLOR_WHITE, curses.COLOR_BLACK)  # 입력 필드용 (흰 글자, 검은 배경)
+    curses.init_pair(7, curses.COLOR_BLACK, curses.COLOR_WHITE)  # 커서 위치 표시용 (검은 글자, 흰 배경)
 
     context = Context(stdscr)
     HelpWindow(context)
