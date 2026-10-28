@@ -52,7 +52,7 @@ class HelpWindow:
         self.window.scrollok(True)
         self.window.addstr(0, 5, 'Help')
         self.window.addstr(1, 2, '[/]: change user to rlogin, [,]: change rlogin/ssh')
-        self.window.addstr(2, 2, '[ctrl-n]: register new server     [ctrl-d]: delete server')
+        self.window.addstr(2, 2, '[ctrl-n]: register new server     [ctrl-x]: delete server')
         self.window.addstr(3, 2, '[ctrl-e]: modify server           [ctrl-c]: quit or close popup window')
         self.window.addstr(4, 2, '[ctrl-l]: load old gw file        [ctrl-r]: reset popup input')
         self.window.addstr(5, 2, '- registered server will be saved when terminated. (server_list.json)')
@@ -842,7 +842,7 @@ def main(stdscr):
             elif c == 339:
                 server_list_win.select_up(20)
                 server_list_win.refresh()
-            elif c == 4:
+            elif c == 24:  # Ctrl-X
                 server_list_win.delete_current_server()
                 server_list_win.refresh_max()
                 server_list_win.refresh()
